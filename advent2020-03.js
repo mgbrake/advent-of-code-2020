@@ -5,42 +5,26 @@ const fs = require('fs');
  * STRATEGY: iterate through terrain and find matches using mod function
  */
 
-var data = '';
+
 var terrain = [];
 var lineLength = 1;
 var moveright = 3;
 var movedown = 1;
 var hitchar = '#';
-var readStream = fs.createReadStream('03-terrain.txt', 'utf8');
 
-
-readStream.on('data', function(chunk) {
-    
-    data += chunk;
-    //console.log(chunk);
-    if(chunk.includes('\r\n')){
-        let line = data.split("\r\n");
-        console.log(line);
-        line.pop();
-        checkSubArray(line);
-        //console.log(foundMatch + " for " + strNumbers);
-        data = data.replace(line.join("\r\n"), "");
+fs.readFile('03-terrain.txt', 'utf8', function (err,data) {
+    if (err) {
+        return console.log(err);
     }
-});
-    
-readStream.on('end', function() {
-    
-    let line = data.split("\r\n");
-    checkSubArray(line);
+    let lines = data.split("\r\n");
+    if(lines.length==1)
+    {
+        lines = data.split("\n");
+    }
+    runIt(lines);
+  });
 
-    let hits = countHits();
-
-     console.log(terrain);
-    console.log(`hits: ${hits}`);
-});
-
-
-function checkSubArray(line) {
+function runIt(line) {
     
     line.forEach(element => {
         if(element==="")
@@ -50,7 +34,8 @@ function checkSubArray(line) {
         lineLength = element.trim().length;
         terrain.push(element.trim());
     });
-    return;
+    
+    countHits();
 }
 
 function countHits()
@@ -70,7 +55,9 @@ function countHits()
             terrain[y] = terrain[y].replaceAt(x,"O");
         }
     }
-    return hits;
+    
+    console.log(terrain);
+    console.log(hits);
 }
 
 String.prototype.replaceAt = function(index, replacement) {
