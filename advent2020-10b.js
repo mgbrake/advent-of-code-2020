@@ -1,35 +1,34 @@
-const { group, groupCollapsed } = require('console');
 const fs = require('fs');
-const { gzip } = require('zlib');
 
 /*****************
  *  MISSION: find ordered list of adapters, count 1 jumps and 3 jumps
- * STRATEGY: So, the sequence can be +1, +2 or +3 for value each time.
+ * STRATEGY: So, the sequence can be +1 (skip 0), +2 (skip 1) or +3 (skip 2) for value each time.
  * The three jumps are firm - consider those fence posts.
  * but within each contiguous block there can be some variations.
- * The number of variations in each block are then multiplied by the number
+ * like pairs of socks * pairs of pants * shirts = different combinations,
+ * so the number associated with each block as a 3 skip apart, which don't change, are multiplied
+ * 
  * of variations in each additional block.
- * 4,5,6,7 has 4 variations: 4567,4.67,45.7,4..7
+ * 15,16 has 1 variation
  * 10,11,12 has 2 variations: 101112, 10.12
- * 15,16 has 1 variation:
+ * 4,5,6,7 has 4 variations: 4567,4.67,45.7,4..7
  * so 0,1,4,5,6,7,10,11,12,15,16,19,22 has a total of 8 variations
  * this could be done with a chart, to speed it along
  * 45678,4.678,45.78,456.8,4..78,4.6.8,45..8 #NOT VALID: 4...8
  * 456789,
  *      4.6789,45.789,456.89,4567.9,
  *      4..789,4.6.89,4.67.9,45..89,45.7.9,456..9,
- *      4..7.9,4.6..9,
+ *      4..7.9,4.6..9
  *      NOT AN OPTION: 4...89, 45...9, 4....9
  * 4567890,
  *      4.67890,45.7890,456.890,4567.90,45678.0,
  *      4..7890,4.6.890,4.67.90,4.678.0,45..890,45.7.90,45.78.0,456..90,456.8.0,4567..0
- *      4...890,4..7.90,4..78.0,4.6..90,4.6.8.0,45...90,45..8.0,45.7..0,45.78.0,456...0,
- *      4...8.0,4..7..0,4.6...0
+ *      4..7.90,4..78.0,4.6..90,4.6.8.0,45..8.0,45.7..0,45.78.0,
+ *      4..7..0
  */ 
 
 
 var groups = [], jump1=[], jump3=[], collected=[];
-const maxindex = 660;
 var factors = [
     { groupSize: 0, factor: 1 },
     { groupSize: 1, factor: 1 },
@@ -39,7 +38,7 @@ var factors = [
     { groupSize: 5, factor: 7 }, //2+4  +1
     { groupSize: 6, factor: 13 }, //4+7 +2
     { groupSize: 7, factor: 24 }, //7+13 +4
-    
+    { groupSize: 8, factor: 44 }, //13+24 +7 (tribonacci)
 ];
 var maxContiguous = 1;
 
