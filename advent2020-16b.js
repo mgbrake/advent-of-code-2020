@@ -2,6 +2,7 @@ const { group } = require('console');
 const { randomBytes } = require('crypto');
 const fs = require('fs');
 const { isRegExp } = require('util');
+const { runInThisContext } = require('vm');
 
 /*****************
  *  MISSION: ticket validation
@@ -16,7 +17,7 @@ const { isRegExp } = require('util');
  */
 
 
-var groups=[], invalids = [], yourticket=[], nearbytickets=[], invalidsingles=[];
+var groups=[], invalids = [], yourticket=[], nearbytickets=[], invalidsingles=[], takenIndexes=[];
 var errorrate = 0;
 
 fs.readFile('16-tickets.txt', 'utf8', function (err,data) {
@@ -76,13 +77,31 @@ function setup(lines) {
                 break;
             case "nearby tickets":
                 var ticket = line.split(',').map(a=>{return parseInt(a.trim());});
-                valid = false;
+                var fullticketvalid = true;
                 (ticket).forEach(num => {
+                    var valid = false;
                     (groups).forEach(grp => {
-                        valid = valid || validForGroup(num,grp);
+                        var isValid = validForGroup(num,grp);
+                        if(isValid) {
+                            //console.log(`number ${num} is valid for ${grp.name}`);
+                            //console.log(grp.ranges);
+                        }
+                        else
+                        {
+                            //console.log(`NOT VALID number ${num} is not valid for ${grp.name}`);
+                            //console.log(grp.ranges);
+                        }
+                        //console.log(`valid was ${valid}`);
+                        valid = valid || isValid;
+                        //console.log (`[valid] is now ${valid}`);
                     });
+                    if(!valid)
+                    {
+                        fullticketvalid = false;
+                        invalidsingles.push(num);
+                    }
                 });
-                if(valid)
+                if(fullticketvalid)
                 {
                     nearbytickets.push(ticket);
                 }
@@ -96,37 +115,87 @@ function setup(lines) {
         
     });
     nearbytickets.push(yourticket);
+    console.log(`valid tickets: ${nearbytickets.length}, invalid: ${invalids.length}`);
+
+
+    console.log('your ticket');
+    console.log(yourticket);
+    runIt();
+}
+
+function runIt() {
 
     groups.forEach(grp => {
         grp.index = 0;
         var validindex = true;
+        grp.possibleIndexes = [];
         while(validindex && grp.index<yourticket.length)
         {
-            console.log(`group: ${grp.name}, index: ${grp.index}`);
+            if(takenIndexes.includes(grp.index))
+            {
+                grp.index++;
+                continue; // skip checking this index;
+            }
+            //console.log(`group: ${grp.name}, index: ${grp.index}`);
             for(var i=0; i<nearbytickets.length; i++)
             {
-                console.log(`checking nt[${i}][${grp.index}] (${nearbytickets[i][grp.index]}) for valid against ${grp.name}`);
+                //console.log(`checking nt[${i}][${grp.index}] (${nearbytickets[i][grp.index]}) for valid against ${grp.name}`);
                 if(!validForGroup(nearbytickets[i][grp.index], grp))
                 {
+
                     validindex = false;
-                    console.log(`NOTVALID: nt[${i}][${grp.index}] (${nearbytickets[i][grp.index]}) for valid against ${grp.name}`);
+                    //console.log(`NOTVALID: nt[${i}][${grp.index}] (${nearbytickets[i][grp.index]}) for valid against ${grp.name}`);
                 }
             }
-
             if(validindex) 
             {
-                return; // no issues found foreach group function return
+                //no issues found
+                //console.log(`possibly valid ${grp.name} ${grp.index}`);
+                grp.possibleIndexes.push(grp.index);
+                //takenIndexes.push(grp.index);
+                //return; // not sure if it's the only one yet... DONT return foreach group function return
             }
-            else
-            {
-                validindex = true;
-                grp.index++;
-            }
-        }
             
-        
-
+            validindex = true;
+            grp.index++;
+        }
+        if(grp.possibleIndexes.length==1)
+        {
+            grp.index = grp.possibleIndexes[0];
+            takenIndexes.push(grp.index);
+        }
     });
+
+    var leftToSlot = groups.filter(a=>{return a.possibleIndexes.length>1;});
+    while(leftToSlot.length>0)
+    {
+        // console.log(`left to slot`);
+        // console.log(leftToSlot);
+        // console.log(`takenIndexes`);
+        // console.log(takenIndexes);
+
+        groups.forEach(grp => {
+            if(grp.possibleIndexes.length==1) { return; }
+            //^^no point doing it again
+            for(var i=grp.possibleIndexes.length-1; i>=0; i--)
+            {
+                if(takenIndexes.includes(grp.possibleIndexes[i]))
+                {
+                    // console.log(`located taken index: ${grp.possibleIndexes[i]} at ${i}`);
+                    // console.log(grp);
+                    grp.possibleIndexes.splice(i,1);
+                    // console.log(grp);
+                }
+            }
+            if(grp.possibleIndexes.length==1)
+            {
+                grp.index = grp.possibleIndexes[0];
+                takenIndexes.push(grp.index);
+            }
+        });
+
+        leftToSlot = groups.filter(a=>{return a.possibleIndexes.length>1;});
+    }
 
     console.log(groups);
     console.log("your ticket:");
