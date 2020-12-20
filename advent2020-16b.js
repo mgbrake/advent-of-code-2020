@@ -1,8 +1,4 @@
-const { group } = require('console');
-const { randomBytes } = require('crypto');
 const fs = require('fs');
-const { isRegExp } = require('util');
-const { runInThisContext } = require('vm');
 
 /*****************
  *  MISSION: ticket validation
