@@ -10,6 +10,7 @@ const fs = require('fs');
 
 var groups = [], corners = [];
 var image = [];
+var removeborders = true;
 var findobject = `
                   # 
 #    ##    ##    ###
@@ -247,6 +248,7 @@ function composeImage()
     var thistile = corners[0];
     console.log(`start tile: ${thistile.number}`);
     var startcolumn = 0;
+    var startrow = 0;
     if(thistile.matchesE>0)
     {
         //opposite side is the "entrance"
@@ -276,11 +278,18 @@ function composeImage()
     //create first set of tiles, empty
     for(var r=0; r<thistile.rows.length; r++)
     {
+        if(removeborders && (r==0 || r==thistile.rows.length-1))
+        {
+            //trimming borders
+        }
+        else 
+        {
         image.push([]);
+        }
     }
 
     var lasttile = thistile;
-    var readyForSouth = [];
+    var readyForSouth = [], rfsPattern = [];
     while(!corners.includes(lasttile))
     {
     
@@ -288,9 +297,20 @@ function composeImage()
         {
             for(var c=0; c<thistile.rows[r].length; c++)
             {
-                image[r][startcolumn+c] = thistile.rows[r][c];
+                if(removeborders&& (r==0 || c==0 || r==thistile.rows.length-1 || c==thistile.rows[r].length-1))
+                {
+                    //no action, trim border
+                } else if (removeborders)
+                {
+                    image[startrow+r-1][startcolumn+c-1] = thistile.rows[r][c]; // append to image...
+                } else {
+                    image[startrow+r][startcolumn+c] = thistile.rows[r][c]; // append to image...
+                }
             }
-            image[r][image[r].length] = " ";
+            if(!removeborders)
+            {
+                image[startrow+r][image[startrow+r].length] = " ";
+            }
         }
         //next tile
         startcolumn = image[0].length;
@@ -314,7 +334,7 @@ function composeImage()
             }
             //now, we know have it oriented.  so rotate to match
             var exitIndex = (matchedIndex+2)%4;
-            while(exitIndex!=1)
+            while(exitIndex!=1) //1=east
             {
                 // need to rotate
                 rotateRight(nexttile);
@@ -323,13 +343,113 @@ function composeImage()
         }
         if(thistile.matchesS>=1)
         {
-            readyForSouth[readyForSouth.length] = thistile;
+            readyForSouth[readyForSouth.length] = thistile.matchesSphotos[0];
+            rfsPattern[rfsPattern.length] = thistile.matchesSpattern;
         }
         lasttile = thistile;
         thistile = nexttile;
     }
+    
+    var totalcolumns = image[0].length;
+    var rowsperline = image.length;
+    startrow = rowsperline;
 
     //from here on, just add on the oriented tiles to the south of each of these tiles
+    while(readyForSouth.length>0)
+    {
+        
+    image.forEach(row => {
+        console.log(row.reduce((a,b)=>a+b,""));
+    });
+        if(startcolumn==totalcolumns)
+        {
+            //restart on a new row
+            startcolumn = 0;
+            startrow = image.length;
+            //TEMP:  add spacing row
+            if(!removeborders)
+            {
+                image[startrow++] = [];
+            }
+            
+
+            for(var d=0;d<rowsperline;d++)
+            {
+                image[startrow+d] = [];
+            }
+        }
+
+        var thistile = readyForSouth[0];
+        readyForSouth.splice(0,1);
+        var thistoppattern = rfsPattern[0];//.split('').reverse().join(''); // opposite pattern of the previous exit
+        rfsPattern.splice(0,1);
+
+        //need to orient it
+        //find the pattern match
+        var matchedIndex = thistile.edges.indexOf(thistoppattern); 
+        if(matchedIndex<4)
+        {
+            // tile needs to be flipped
+            flipTileNS(thistile);
+            matchedIndex = matchedIndex+4
+        }
+        var matchedIndex = (matchedIndex)%4;
+        while(matchedIndex!=0) //north
+        {
+            // need to rotate
+            rotateRight(thistile);
+            matchedIndex= ((matchedIndex+1)%4);
+        }
+
+        if(thistile.matchesNpattern!=thistile.matchesNphotos[0].matchesSpattern.split('').reverse().join('')
+        || thistile.matchesNpattern!=thistile.matchesNphotos[0].matchesSpattern)
+        {
+            flipTileEW(thistile);
+        }
+
+        if(readyForSouth.length>0 && thistile.matchesEphotos[0]!=readyForSouth[0])
+        {
+            console.log(`NEXT TILE NOT MATCHES: ${readyForSouth[0].number}`);
+        }
+        else 
+        {
+            console.log(`tile matched`);
+        }
+
+        for(var r=0; r<thistile.rows.length; r++) // trim image borders here...
+        {
+            for(var c=0; c<thistile.rows[r].length; c++)
+            {
+                if(removeborders&& (r==0 || c==0 || r==thistile.rows.length-1 || c==thistile.rows[r].length-1))
+                {
+                    //no action, trim border
+                } else if (removeborders)
+                {
+                    image[startrow+r-1][startcolumn+c-1] = thistile.rows[r][c]; // append to image...
+                } else {
+                    image[startrow+r][startcolumn+c] = thistile.rows[r][c]; // append to image...
+                }
+            }
+            if(!removeborders)
+            {
+                image[startrow+r][image[startrow+r].length] = " ";
+            }
+        }
+        //next tile
+        startcolumn = image[startrow].length;
+        if(thistile.matchesS>=1)
+        {
+            console.log(`added another tile south`);
+            readyForSouth[readyForSouth.length] = thistile.matchesSphotos[0];
+            rfsPattern[rfsPattern.length] = thistile.matchesSpattern;
+        }
+        else {
+            console.log(`end tile?`);
+            //console.log(thistile);
+            
+        }
+    }
+
 
 
     //output the composite
@@ -338,12 +458,45 @@ function composeImage()
         console.log(row.reduce((a,b)=>a+b,""));
     });
 
+
+
+    var corners = groups.filter(a=>{return a.sidesHasMatch==2;});
+    if(corners.length==4)
+    {
+        console.log(`four corners found`);
+        //console.log(corners);
+        console.log(`corner sum: ${corners.reduce((a,b)=>a*b.number,1)}`);
+        return;
+    }
+    else 
+    {
+        console.log(`---------CORNERS------------`);
+        console.log(corners);
+    }
+
     return;
 }
 
 function rotateRight(thistile)
 {
-    var oldtile = JSON.parse(JSON.stringify(thistile)); //copy
+    var oldtile = thistile;
+    
+        oldtile = new Object();
+        oldtile.rows = JSON.parse(JSON.stringify(thistile.rows));
+        oldtile.edges = thistile.edges;
+        oldtile.matchesE = thistile.matchesE;
+        oldtile.matchesEphotos = thistile.matchesEphotos;
+        oldtile.matchesEpattern = thistile.matchesEpattern;
+        oldtile.matchesN = thistile.matchesN;
+        oldtile.matchesNphotos = thistile.matchesNphotos;
+        oldtile.matchesNpattern = thistile.matchesNpattern;
+        oldtile.matchesW = thistile.matchesW;
+        oldtile.matchesWphotos = thistile.matchesWphotos;
+        oldtile.matchesWpattern = thistile.matchesWpattern;
+        oldtile.matchesS = thistile.matchesS;
+        oldtile.matchesSphotos = thistile.matchesSphotos;
+        oldtile.matchesSpattern = thistile.matchesSpattern;
+
 
     //ROW, COLUMN (not x,y - y,x)
     //0,0 moves to 0,endOfRow
@@ -356,7 +509,7 @@ function rotateRight(thistile)
     {
         for(var c=0; c<oldtile.rows[r].length; c++)
         {
-            thistile[c][len-r] = oldtile[r][c];
+            thistile.rows[c][len-1-r] = oldtile.rows[r][c];
         }
     }
     for(var i=0;i<4; i++)
@@ -386,9 +539,16 @@ function rotateRight(thistile)
 function flipTileEW(thistile)
 {
     //console.log(thistile.rows);
-    thistile.rows.forEach(row => {
-        row = row.split('').reverse().join('');
-    });
+    for(var i=0;i<thistile.rows.length;i++) {
+        var halfLen = Math.floor(thistile.rows[i].length/2.0);
+        //console.log(`halflen = ${halfLen}`);
+        for(var j=0; j<halfLen; j++)
+        {
+            var holdit = thistile.rows[i][j];
+            thistile.rows[i][j] = thistile.rows[i][thistile.rows[i].length-1-j];
+            thistile.rows[i][thistile.rows[i].length-1-j] = holdit;
+        }
+    }
     //console.log(thistile.rows);
     var holdct = thistile.matchesE;
     var holdPhotos = thistile.matchesEphotos;
